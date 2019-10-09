@@ -508,20 +508,26 @@
 
 	let score = 0;
 
-	class Asteroid extends Actor {
+	class Asteroid extends MovingObject {
 		asteroidPath;
 		airFriction = 1;
 		edgeBehavior = 'bounce';
 		initialSize;
 		size;
+		maxSpeed = 30;
 
-		constructor(x, y, size) {
+		constructor(x, y, size, autoSpeed) {
 			super(x, y, size, size, undefined);
 			this.size = size;
 			this.initialSize = size;
-			this.updateAsteroidPath();
-			this.setRandomMovement();
-			this.setRandomRotation();
+			let asteroidPoly = new RegularPolygon(1, 5);
+			this.asteroidPath = asteroidPoly.createPath();
+			this.asteroidPath.strokeColor = '#fff';
+			this.setPath(0, this.asteroidPath);
+			if (autoSpeed === undefined || autoSpeed === true) {
+				this.setRandomMovement();
+				this.setRandomRotation();
+			}
 		}
 
 		reduceSize(size) {
@@ -533,16 +539,10 @@
 			}
 		}
 
-		updateAsteroidPath() {
-			let asteroidPoly = new RegularPolygon(this.size * asteroidSizeMultiplier, 5);
-			this.asteroidPath = asteroidPoly.createPath();
-			this.asteroidPath.strokeColor = '#fff';
-			this.setPath(0, this.asteroidPath);
-		}
-
 		update() {
 			super.update();
-			this.updateAsteroidPath();
+			this.asteroidPath.fillColor = undefined;
+			this.asteroidPath.setScale(this.size * asteroidSizeMultiplier);
 		}
 	}
 
