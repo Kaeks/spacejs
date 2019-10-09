@@ -259,7 +259,17 @@
 		up = false;
 		right = false;
 		down = false;
+		maxHealth;
 		health;
+
+		setHealth(newVal) {
+			if (newVal > this.maxHealth) this.health = this.maxHealth;
+			else this.health = newVal;
+		}
+
+		increaseHealth(amount) {
+			this.setHealth(this.health + amount);
+		}
 
 		update() {
 			super.update();
@@ -271,16 +281,18 @@
 		}
 	}
 
+	const OPMODE = true;
+
 	class User extends Actor {
 		maxSpeed = 15;
 		accel = 1;
-		health = 100;
+		maxHealth = 100;
 
 		shooting = false;
 
 		shootingTriple = false;
 		tripleAmmo = 20;
-		tripleCurrent = this.tripleAmmo;
+		tripleCurrent;
 		tripleRecharge = 0.1;
 		tripleAfterCoolDown = 50;
 		tripleAfterCounter = 0;
@@ -303,6 +315,16 @@
 			super(x, y, width, height, undefined);
 			this.userPath.setRotation(0);
 			this.addPath(this.userPath);
+			if (OPMODE) {
+				this.tripleAmmo = 20;
+				this.tripleRecharge = 20;
+				this.tripleAfterCoolDown = 0;
+				this.burstCoolDown = 2;
+				this.shotCoolDown = 0;
+				this.iFrames = 10000;
+			}
+			this.tripleCurrent = this.tripleAmmo;
+			this.health = this.maxHealth;
 		}
 
 		burst() {
@@ -567,6 +589,18 @@
 	let appTicks;
 	let isRunning;
 
+	class HealthStatusBar extends StatusBar {
+		constructor(x, y, width, height) {
+			super(x, y, width, height, '#f55', '#000', '#555', false);
+		}
+
+		update() {
+			this.progress = (user.health) / user.maxHealth;
+			super.update();
+		}
+
+	}
+
 	class TripleStatusBar extends SegmentedStatusBar {
 		constructor(x, y, width, height) {
 			super(x, y, width, height, '#5f5', '#000', '#555', user.tripleAmmo / 2, true);
@@ -756,11 +790,13 @@
 		appObjectList.push(user);
 
 		// ### status bar setup
-		let barTriple = new TripleStatusBar(110, 20, 200, 20);
-		let barBurst = new BurstStatusBar(270, 20, 100, 20);
+		let barTriple = new TripleStatusBar(20, canvas.height - 110, 200, 20);
+		let barBurst = new BurstStatusBar(90, canvas.height - 20, 100, 20);
+		let barHealth = new HealthStatusBar(90, canvas.height - 50, 100, 20);
 
 		appObjectList.push(barTriple);
 		appObjectList.push(barBurst);
+		appObjectList.push(barHealth);
 
 		// ### asteroids
 		minAsteroidInterval = 20;
