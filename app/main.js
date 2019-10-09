@@ -520,14 +520,16 @@
 		statusColor;
 		progress;
 		canCollide = false;
+		vertical = false;
 
-		constructor(x, y, width, height, fillColor, strokeColor, emptyColor) {
-			super(x, y, width, height);
+		constructor(x, y, width, height, fillColor, strokeColor, emptyColor, vertical) {
+			super(x, y, width, height, undefined);
 			this.strokePath = new Rectangle(width, height).createPath();
 			this.strokePath.fillColor = strokeColor;
 			this.emptyPath = new Rectangle(width - 5, height - 5).createPath();
 			this.emptyPath.fillColor = emptyColor;
 			this.statusColor = fillColor;
+			this.vertical = vertical ? vertical : false;
 			this.addPath(this.strokePath);
 			this.addPath(this.emptyPath);
 			this.addPath(this.statusPath);
@@ -540,14 +542,15 @@
 			this.statusPath.fillColor = this.statusColor;
 			this.statusPath.shift((innerWidth - innerWidth * this.progress) / -2, 0);
 			this.setPath(2, this.statusPath);
+			if (this.vertical) for (let i = 0; i < this.paths.length; i++) this.paths[i].setRotation(90);
 		}
 	}
 
 	class SegmentedStatusBar extends StatusBar {
 		segments;
 
-		constructor(x, y, width, height, fillColor, strokeColor, emptyColor, segments) {
-			super(x, y, width, height, fillColor, strokeColor, emptyColor);
+		constructor(x, y, width, height, fillColor, strokeColor, emptyColor, segments, vertical) {
+			super(x, y, width, height, fillColor, strokeColor, emptyColor, vertical);
 			this.segments = segments;
 			for (let i = 1; i < segments; i++) {
 				let innerWidth = this.width - 5;
@@ -566,7 +569,7 @@
 
 	class TripleStatusBar extends SegmentedStatusBar {
 		constructor(x, y, width, height) {
-			super(x, y, width, height, '#5f5', '#000', '#555', user.tripleAmmo / 2);
+			super(x, y, width, height, '#5f5', '#000', '#555', user.tripleAmmo / 2, true);
 		}
 
 		update() {
@@ -577,7 +580,7 @@
 
 	class BurstStatusBar extends StatusBar {
 		constructor(x, y, width, height) {
-			super(x, y, width, height, '#55f', '#000', '#555');
+			super(x, y, width, height, '#55f', '#000', '#555', false);
 		}
 
 		update() {
