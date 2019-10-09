@@ -766,6 +766,56 @@
 					}
 				}
 			}
+		} else if (obj1 instanceof Asteroid && obj2 instanceof Asteroid) {
+			let x1 = obj1.x,
+				x2 = obj2.x,
+				y1 = obj1.y,
+				y2 = obj2.y;
+			let d = getDistance(x1, y1, x2, y2);
+			if (d < (obj1.size + obj2.size) * asteroidSizeMultiplier) {
+				colliding = true;
+				let angle = Math.atan2(y2 - y1, x2 - x1);
+				let trueD = (obj1.size * asteroidSizeMultiplier + obj2.size * asteroidSizeMultiplier) - d;
+
+				// Place circles on their edges
+				obj2.x += Math.cos(angle) * trueD;
+				obj2.y += Math.sin(angle) * trueD;
+
+				// Physics
+
+				let obj1V = new Vector2D(obj1.speedX, obj1.speedY, new Point(obj1.x, obj1.y));
+				let obj2V = new Vector2D(obj2.speedX, obj2.speedY, new Point(obj2.x, obj2.y));
+
+				let normalVector = new Vector2D(obj2.x - obj1.x, obj2.y - obj1.y, new Point(obj1.x, obj1.y)).normalize();
+				let tangentVector = new Vector2D(-normalVector.y, normalVector.x, new Point((obj1.x + obj2.x) / 2, (obj1.y + obj2.y) / 2))
+
+				let nComponent1 = normalVector.multiply(scalar(obj1V, normalVector));
+				let nComponent2 = normalVector.multiply(scalar(obj2V, normalVector));
+
+				let tComponent1 = subtract(obj1V, nComponent1);
+				let tComponent2 = subtract(obj2V, nComponent2);
+
+				vectorList.push(obj1V.multiply(100));
+				//vectorList.push(obj2V.multiply(100));
+
+				vectorList.push(nComponent1.multiply(100));
+				//vectorList.push(nComponent2.multiply(100));
+
+				vectorList.push(tComponent1.multiply(100));
+				//vectorList.push(tComponent2.multiply(100));
+
+				let v1a = parseAngle(Math.atan2(obj1V.y, obj1V.x));
+				let v2a = parseAngle(Math.atan2(obj2V.y, obj2V.x));
+
+				let nC1a = parseAngle(Math.atan2(nComponent1.y, nComponent1.x));
+				let tC1a = parseAngle(Math.atan2(tComponent1.y, nComponent1.x));
+				let nC2a = parseAngle(Math.atan2(nComponent2.y, nComponent2.x));
+				let tC2a = parseAngle(Math.atan2(tComponent2.y, nComponent2.x));
+
+				console.log('v1a: ' + v1a + '; v2a: ' + v2a);
+				console.log('nC1a: ' + nC1a + '; tC1a: ' + tC1a + '; diff: ' + (nC1a - tC1a));
+
+			}
 		}
 		if (colliding) {
 			obj1.colliding = true;
@@ -819,21 +869,26 @@
 	let maxAsteroidSize;
 	let asteroidSizeMultiplier = 10;
 
+	const DEBUG = true;
+	const VECTOR_ARROWS = true;
+
 	function appLoop() {
 		if (!isRunning) return;
 		requestAnimationFrame(appLoop);
 
 		appTicks++;
 
-		// add asteroids
-		if (curAsteroidCounter === nextAsteroid) {
-			getNextAsteroid();
-			let size = getRandomIntWithRange(minAsteroidSize, maxAsteroidSize + 1);
-			let position = getAsteroidPosition(size * asteroidSizeMultiplier);
-			appObjectList.push(new Asteroid(position[0], position[1], size));
-			curAsteroidCounter = 0;
+		if (!DEBUG) {
+			// add asteroids
+			if (curAsteroidCounter === nextAsteroid) {
+				getNextAsteroid();
+				let size = getRandomIntWithRange(minAsteroidSize, maxAsteroidSize + 1);
+				let position = getAsteroidPosition(size * asteroidSizeMultiplier);
+				appObjectList.push(new Asteroid(position[0], position[1], size));
+				curAsteroidCounter = 0;
+			}
+			curAsteroidCounter++;
 		}
-		curAsteroidCounter++;
 
 		// user inputs
 		user.left = keystates[37];
@@ -880,8 +935,28 @@
 			let cur = appObjectList[i];
 			if (cur === undefined) continue;
 			cur.draw();
+			// draw speed vector
+			if (VECTOR_ARROWS) {
+				if (cur instanceof MovingObject) {
+					new Vector2D(cur.speedX * 10, cur.speedY * 10, new Point(cur.x, cur.y)).draw();
+				}
+			}
 		}
-		console.log(score);
+
+		let drewVectors = false;
+
+		for (let i = 0; i < vectorList.length; i++) {
+			let cur = vectorList[i];
+			if (cur === undefined) continue;
+			context.strokeStyle = 'red';
+			cur.draw();
+			vectorList[i] = undefined;
+			vectorList.clean(undefined);
+			drewVectors = true;
+		}
+
+		//console.log(score);
+		if (drewVectors) debugger;
 	}
 
 	function setup() {
@@ -922,6 +997,16 @@
 		minAsteroidSize = 1;
 		maxAsteroidSize = 10;
 		getNextAsteroid();
+
+		if (DEBUG) {
+			let ast1 = new Asteroid(canvas.width / 2 - 150, canvas.height / 2 - 100, 10, false);
+			let ast2 = new Asteroid(canvas.width / 2 + 150, canvas.height / 2, 10, false);
+
+			ast1.speedX = 5;
+			ast2.speedX = -5;
+			appObjectList.push(ast1);
+			appObjectList.push(ast2);
+		}
 
 		// ### add key listeners
 		addEventListener('keydown', keyListener);
