@@ -15,11 +15,14 @@
 	class Path {
 		steps = [];
 		origSteps = [];
+		centerX = 0;
+		centerY = 0;
 
 		fillColor;
 		strokeColor;
 
 		rotation = 0;
+		scale = 1;
 
 		constructor(steps) {
 			this.steps = steps ? steps : [];
@@ -30,20 +33,29 @@
 			while (newVal > 360) newVal -= 360;
 			while (newVal < 0) newVal += 360;
 			this.rotation = newVal;
-
-			for (let i = 0; i < this.steps.length; i++) {
-				let origStep = this.origSteps[i], origValues = origStep.values, origX = origValues[0], origY = origValues[1],
-					radians = (Math.PI / 180) * this.rotation, sin = Math.sin(radians), cos = Math.cos(radians);
-				this.steps[i].values[0] = (cos * origX) + (sin * origY);
-				this.steps[i].values[1] = (cos * origY) - (sin * origX);
-			}
 		}
 
 		setScale(newVal) {
+			this.scale = newVal;
+		}
+
+		applyVariables() {
 			for (let i = 0; i < this.steps.length; i++) {
-				let origStep = this.origSteps[i], origValues = origStep.values, origX = origValues[0], origY = origValues[1];
-				this.steps[i].values[0] = origX * newVal;
-				this.steps[i].values[1] = origY * newVal;
+				let origStep = this.origSteps[i], origValues = origStep.values, origX = origValues[0], origY = origValues[1],
+					radians = (Math.PI / 180) * this.rotation, sin = Math.sin(radians), cos = Math.cos(radians);
+
+				this.steps[i].values[0] = this.scale * ((cos * (origX + this.centerX)) + (sin * (origY + this.centerY)));
+				this.steps[i].values[1] = this.scale * ((cos * (origY + this.centerY)) - (sin * (origX + this.centerX)));
+			}
+		}
+
+		setPermanentRotation(newVal) {
+			for (let i = 0; i < this.origSteps.length; i++) {
+				let origStep = this.origSteps[i], origValues = origStep.values, origX = origValues[0], origY = origValues[1],
+					radians = (Math.PI / 180) * newVal, sin = Math.sin(radians), cos = Math.cos(radians);
+
+				this.origSteps[i].values[0] = (cos * (origX + this.centerX)) + (sin * (origY + this.centerY));
+				this.origSteps[i].values[1] = (cos * (origY + this.centerY)) - (sin * (origX + this.centerX));
 			}
 		}
 
@@ -57,10 +69,13 @@
 				let values = step.values;
 				values[0] += x;
 				values[1] += y;
+				this.centerX = x;
+				this.centerY = y;
 			}
 		}
 
 		execute() {
+			this.applyVariables();
 			for (let i = 0; i < this.steps.length; i++) {
 				let step = this.steps[i];
 				let values = step.values;
@@ -123,19 +138,36 @@
 	class MovingObject extends AppObject {
 		speedX = 0;
 		speedY = 0;
-		maxSpeed = 100;
+		pSpeedX = 0;
+		pSpeedY = 0;
+		maxSpeed = 1;
+		minSpeed = 0.01;
 		accel = 1;
+		angle = 0;
 		airFriction = 0.975;
 		edgeBehavior = 'teleport';
 		rotationSpeed;
 
+		constructor(x, y, width, height, paths) {
+			super(x, y, width, height, paths);
+		}
+
 		calcVectorAngle() {
 			let addDeg = 0;
-			if (this.speedX === 0 && this.speedY === 0) return 0;
+
+			let xStartMoving = this.pSpeedX === 0 && this.speedX !== 0;
+			let yStartMoving = this.pSpeedY === 0 && this.speedY !== 0;
+
+			let xChangeDirection = this.pSpeedX / Math.abs(this.pSpeedX) === -1 * this.speedX / Math.abs(this.speedX);
+			let yChangeDirection = this.pSpeedY / Math.abs(this.pSpeedY) === -1 * this.speedY / Math.abs(this.speedY);
+
+			if ((this.speedX === 0 || this.speedY === 0) && !(xStartMoving || yStartMoving || xChangeDirection || yChangeDirection)) return this.angle;
 			if (this.speedY < 0) {
 				addDeg = 180;
 			}
-			return Math.atan(this.speedX / this.speedY) * 180 / Math.PI - addDeg;
+			let newAngle = Math.atan(this.speedX / this.speedY) * 180 / Math.PI - addDeg;
+			this.angle = newAngle;
+			return newAngle;
 		}
 
 		move(x, y) {
@@ -174,7 +206,13 @@
 		}
 
 		update() {
+			this.pSpeedX = this.speedX;
+			this.pSpeedY = this.speedY;
+
 			super.update();
+
+			if (Math.abs(this.speedX) < this.minSpeed) this.speedX = 0;
+			if (Math.abs(this.speedY) < this.minSpeed) this.speedY = 0;
 
 			if (this.rotationSpeed) {
 				for (let i = 0; i < this.paths.length; i++) {
@@ -660,6 +698,7 @@
 		for (let i = 0; i < appObjectList.length; i++) {
 			let cur = appObjectList[i];
 			if (cur === undefined) continue;
+			if ((cur.x < 0 || cur.x > canvas.width || cur.y < 0 || cur.y > canvas.height) && (cur.speedX === 0 && cur.speedY === 0) && !(cur instanceof User)) cur.upForDestruction = true;
 			if (cur.upForDestruction) {
 				appObjectList[i] = undefined;
 				continue;
