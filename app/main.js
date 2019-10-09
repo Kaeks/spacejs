@@ -131,6 +131,26 @@
 			}
 		}
 
+		findClosest(object, onlyInside) {
+			let closest;
+			let shortestDistance;
+			for (let i = 0; i < appObjectList.length; i++) {
+				let cur = appObjectList[i];
+				if (cur instanceof object) {
+					if (onlyInside && (cur.x < 0 || cur.x > canvas.width || cur.y < 0 || cur.y > canvas.height)) continue;
+					let distance = getDistance(this.x, this.y, cur.x, cur.y);
+					if (shortestDistance === undefined || distance < shortestDistance) {
+						shortestDistance = distance;
+						closest = cur;
+					}
+				}
+			}
+			return {
+				obj: closest,
+				d: shortestDistance
+			};
+		}
+
 		update() {
 		}
 	}
@@ -467,18 +487,21 @@
 	}
 
 	class Shot extends MovingObject {
-		maxSpeed = 20;
+		maxSpeed = 10;
 		maxLifetime = 200;
 		airFriction = 1;
 		lifetime = 0;
 		edgeBehavior = 'bounce';
 		strength;
+		triggerDelay;
+		triggerTime = 0;
 		shotPath = new Rectangle(5, 10).createPath();
+		origColor = '#fff';
 
-		constructor(x, y, angle, strength) {
+		constructor(x, y, angle, strength, triggerDelay) {
 			super(x, y, 2, 5, undefined);
-			this.strength = strength ? strength : 1;
-			this.shotPath.fillColor = 'rgb(255,0,0)';
+			this.strength = strength === undefined ? 1 : strength;
+			this.triggerDelay = triggerDelay ? triggerDelay : 0;
 			this.addPath(this.shotPath);
 			this.calcSpeedFromAngle(angle);
 		}
@@ -495,15 +518,251 @@
 			}
 
 			super.update();
-			let opacity = 1 / Math.pow(this.maxLifetime, 2) * -1 * Math.pow(this.lifetime, 2) + 1;
-			this.shotPath.fillColor = 'rgba(255,255,255,' + opacity + ')';
-			if (this.lifetime < this.maxLifetime) {
+			let opacity = this.maxLifetime > 0 ? 1 / Math.pow(this.maxLifetime, 2) * -1 * Math.pow(this.lifetime, 2) + 1 : 1;
+			let rgbValue = hexToRgb(this.origColor);
+			this.shotPath.fillColor = 'rgba(' + rgbValue.r + ', ' + rgbValue.g + ', ' + rgbValue.b  + ', ' + opacity + ')';
+			this.canCollide = this.triggerTime === this.triggerDelay;
+			if (this.triggerTime < this.triggerDelay) this.triggerTime++;
+			if (this.lifetime < this.maxLifetime || this.maxLifetime === 0) {
 				this.lifetime++;
 			} else {
 				this.upForDestruction = true;
 			}
 		}
 
+	}
+
+	class SeekingShot extends Shot {
+		seekPrimeDelay = 20;
+		maxSpeed = 20;
+		maxLifetime = 1000;
+
+		constructor(x, y, angle, strength, triggerDelay) {
+			super(x, y, angle, strength, triggerDelay);
+		}
+
+		update() {
+			super.update();
+			if (this.lifetime < this.seekPrimeDelay) return;
+			let closest = this.findClosest(Asteroid, true);
+			let angle;
+			if (closest.obj === undefined) {
+				if (getObjDistance(this, user) > 200) {
+					angle = - getAngle(this.x, this.y, user.x, user.y) + 90;
+				} else {
+					angle = - getAngle(this.x, this.y, user.x, user.y) - 185;
+				}
+			} else {
+				closest.obj.paths[0].fillColor = '#f99';
+				angle = - getAngle(this.x, this.y, closest.obj.x, closest.obj.y) + 90;
+			}
+			this.calcSpeedFromAngle(angle);
+		}
+
+	}
+
+	class PlayerOrbitingShot extends Shot {
+		seekPrimeDelay = 20;
+		maxSpeed = 15;
+		maxLifetime = 2000;
+
+		constructor(x, y, angle, strength, triggerDelay) {
+			super(x, y, angle, strength, triggerDelay);
+		}
+
+		update() {
+			super.update();
+			if (this.lifetime < this.seekPrimeDelay) return;
+			let angle;
+			let d = getObjDistance(this, user);
+			if (d > 300) {
+				angle = - getAngle(this.x, this.y, user.x, user.y) + 90;
+			} else if (300 >= d && d > 200) {
+				angle = - getAngle(this.x, this.y, user.x, user.y) + 5;
+			} else if (200 >= d && d > 150) {
+				angle = - getAngle(this.x, this.y, user.x, user.y) - 90;
+			} else if (150 >= d && d > 100) {
+				angle = - getAngle(this.x, this.y, user.x, user.y) + 90;
+			} else if (100 >= d && d > 50) {
+				angle = - getAngle(this.x, this.y, user.x, user.y) - 175;
+			} else {
+				angle = - getAngle(this.x, this.y, user.x, user.y) - 90;
+			}
+			//if (angle === undefined) return;
+			this.calcSpeedFromAngle(angle);
+		}
+	}
+
+	class OrbitingShot extends Shot {
+		seekPrimeDelay = 20;
+		maxLifetime = 2000;
+		orbiting = {
+			obj: undefined,
+			d: undefined
+		};
+
+		constructor(x, y, angle, strength, triggerDelay) {
+			super(x, y, angle, strength, triggerDelay);
+		}
+
+		update() {
+			super.update();
+			if (this.lifetime < this.seekPrimeDelay) return;
+			if (this.orbiting.obj) {
+				let angle;
+				this.orbiting.d = getObjDistance(this, this.orbiting.obj);
+				let trueD = this.orbiting.d - this.orbiting.obj.size * 10;
+				if (trueD > 100) {
+					angle = - getAngle(this.x, this.y, this.orbiting.obj.x, this.orbiting.obj.y) + 90;
+				} else {
+					angle = - getAngle(this.x, this.y, this.orbiting.obj.x, this.orbiting.obj.y) - 180;
+				}
+				this.calcSpeedFromAngle(angle);
+				if (this.orbiting.obj.upForDestruction) {
+					this.orbiting = {obj: undefined, d: undefined};
+					this.lifetime = 0;
+				}
+			} else {
+				this.orbiting = this.findClosest(Asteroid, true);
+			}
+		}
+	}
+
+	class PayloadShot extends Shot {
+		payload;
+
+		constructor(x, y, angle, payload, strength, triggerDelay) {
+			super(x, y, angle, strength, triggerDelay);
+			this.payload = payload;
+		}
+
+		deployPayload() {
+			let payloadInstance = new this.payload(this.x, this.y, this.angle);
+			appObjectList.push(payloadInstance);
+			this.upForDestruction = true;
+		}
+	}
+
+	class WeirdShot extends PayloadShot {
+		constructor(x, y, angle) {
+			super(x, y, angle, WeirdBomb, 1, 0);
+		}
+
+	}
+
+	class WeirdBomb extends MovingObject {
+		constructor(x, y, angle) {
+			super(x, y, 20, 20, undefined);
+			this.angle = angle;
+		}
+
+		update() {
+			super.update();
+			for (let i = 0; i <= 360; i += 360 / 2) {
+				appObjectList.push(new WeirdShot(this.x, this.y, this.angle + i + 90));
+			}
+			this.upForDestruction = true;
+		}
+	}
+
+	class BombShot extends PayloadShot {
+		constructor(x, y, angle) {
+			super(x, y, angle, Bomb, 1, 5);
+			this.width = 10;
+			this.height = 10;
+			this.shotPath = new Triangle(5).createPath();
+			this.origColor = '#000';
+			this.setPath(0, this.shotPath);
+		}
+	}
+
+	class RecursiveBombShot extends PayloadShot {
+		constructor(x, y, angle) {
+			super(x, y, angle, RecursiveBomb, 1, 5);
+			this.width = 10;
+			this.height = 10;
+			this.shotPath = new Triangle(5).createPath();
+			this.shotPath.setPermanentRotation(-90);
+			this.origColor = '#050';
+			this.setPath(0, this.shotPath);
+		}
+	}
+
+	class BouncingShot extends Shot {
+		constructor(x, y, angle, strength, triggerDelay) {
+			super(x, y, angle, strength, triggerDelay);
+		}
+	}
+
+	class SpecialBomb extends MovingObject {
+		payload;
+
+		constructor(x, y, angle, payload) {
+			super(x, y, 20, 20, undefined);
+			this.angle = angle;
+			this.payload = payload;
+		}
+
+		update() {
+			super.update();
+			for (let i = 0; i <= 360; i += 360/3) {
+				let cur = new this.payload(this.x, this.y, this.angle + i);
+				appObjectList.push(cur);
+			}
+			this.upForDestruction = true;
+		}
+	}
+
+	class Bomb extends SpecialBomb {
+		constructor(x, y, angle) {
+			super(x, y, angle, Shot);
+		}
+
+	}
+
+	class RecursiveBomb extends SpecialBomb {
+		constructor(x, y, angle) {
+			super(x, y, angle, BombShot)
+		}
+	}
+
+	class Pickup extends MovingObject {
+		basePath;
+		airFriction = 1;
+		edgeBehavior = 'bounce';
+
+		constructor(x, y, imgPaths) {
+			super(x, y, 20, 20, undefined);
+			let basePoly = new Triangle(20);
+			this.basePath = basePoly.createPath();
+			this.basePath.stroke = '#000';
+			this.setPath(0, this.basePath);
+			this.setRandomMovement();
+			this.setRandomRotation();
+			for (let i = 0; i < imgPaths.length; i++) {
+				this.addPath(imgPaths[i]);
+			}
+		}
+
+		onPickup(by) {
+			this.upForDestruction = true;
+		}
+	}
+
+	class HealthPickup extends Pickup {
+		healAmount = 10;
+		constructor(x, y) {
+			let imgPaths = [];
+			let imgPoly1 = new Triangle(15);
+			let imgPath1 = imgPoly1.createPath();
+			imgPath1.fillColor = '#f55';
+			super(x, y, imgPaths);
+		}
+
+		onPickup(by) {
+			by.increaseHealth(10);
+			super.onPickup(by);
+		}
 	}
 
 	let score = 0;
@@ -757,11 +1016,36 @@
 					let d = getDistance(x1, y1, x2, y2);
 					if (d < objAst.size * asteroidSizeMultiplier) {
 						colliding = true;
+						if (objOther instanceof PayloadShot) {
+							objOther.deployPayload();
+						}
 						if (objOther instanceof Shot) {
 							objAst.reduceSize(objOther.strength);
 							objOther.upForDestruction = true;
 						} else if (objOther instanceof User) {
 							objOther.inflictDamage(objAst.size);
+						}
+						if (objOther instanceof BouncingShot) {
+							objOther.upForDestruction = false;
+
+							let angle = Math.atan2(y2 - y1, x2 - x1);
+							let size = objOther.width > objOther.height ? objOther.width : objOther.height;
+							let trueD = objAst.size * asteroidSizeMultiplier + size - d;
+
+							objOther.x += Math.cos(angle) * trueD;
+							objOther.y += Math.sin(angle) * trueD;
+
+							let normalAngle = angle * 180 / Math.PI;
+							let normalVector = new Vector2D(x2 - x1, y2 - y1, new Point(x1, y1));
+							let speedVector = new Vector2D(objOther.speedX, objOther.speedY, new Point(x2, y2));
+							let speedAngle = Math.atan2(speedVector.y, speedVector.x) * 180 / Math.PI;
+
+							objOther.calcSpeedFromAngle(normalAngle * -1 + 90);
+							let newVector = new Vector2D(objOther.speedX, objOther.speedY, new Point(x2, y2));
+
+							vectorList.push(normalVector);
+							vectorList.push(speedVector);
+							vectorList.push(newVector);
 						}
 					}
 				}
