@@ -225,7 +225,7 @@
 
 		update() {
 			super.update();
-			// actor issued movement handler
+			// actor issued movement handler (e.g. AI or user)
 			if (this.left) this.accelerate(-1 * this.accel, 0);
 			if (this.up) this.accelerate(0, -1 * this.accel);
 			if (this.right) this.accelerate(this.accel, 0);
@@ -264,12 +264,11 @@
 		constructor(x, y, width, height) {
 			super(x, y, width, height, undefined);
 			this.userPath.setRotation(0);
-			console.log(this.userPath);
 			this.addPath(this.userPath);
 		}
 
 		burst() {
-			for (let i = 0; i <= 360; i += 10) {
+			for (let i = 0; i <= 360; i += 360/36) {
 				this.launch(i);
 			}
 			this.burstCounter = this.burstCoolDown;
@@ -393,12 +392,6 @@
 	class Rectangle extends Polygon {
 		constructor(width, height) {
 			super([ [ -width / 2, -height / 2 ], [ -width / 2, height / 2 ], [ width / 2, height / 2 ], [ width / 2, -height / 2 ] ]);
-		}
-	}
-
-	class Square extends Rectangle {
-		constructor(size) {
-			super(size, size);
 		}
 	}
 
@@ -742,7 +735,7 @@
 		requestAnimationFrame(appLoop);
 	}
 
-	//Entrypoint
+	//Entry point
 	setup();
 
 }(document.querySelector('canvas'), document.querySelector('canvas').getContext('2d')));
