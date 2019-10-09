@@ -180,6 +180,11 @@
 			this.speedY = Math.abs(this.speedY + y) > this.maxSpeed ? this.maxSpeed * (y / Math.abs(y)) : this.speedY + y;
 		}
 
+		applyVector(v) {
+			this.speedX = v.x;
+			this.speedY = v.y;
+		}
+
 		getInterpolation() {
 			return {
 				x : this.x + this.speedX,
@@ -449,6 +454,12 @@
 		}
 	}
 
+	class Triangle extends RegularPolygon {
+		constructor(radius) {
+			super(radius, 3);
+		}
+	}
+
 	class Rectangle extends Polygon {
 		constructor(width, height) {
 			super([ [ -width / 2, -height / 2 ], [ -width / 2, height / 2 ], [ width / 2, height / 2 ], [ width / 2, -height / 2 ] ]);
@@ -623,6 +634,72 @@
 		}
 	}
 
+	class Point {
+		x;
+		y;
+
+		constructor(x, y) {
+			this.x = x;
+			this.y = y;
+		}
+	}
+
+
+	class Vector2D {
+		x;
+		y;
+		start;
+		end;
+
+		constructor(x, y, start) {
+			this.x = x;
+			this.y = y;
+			this.start = start ? start : new Point(0, 0);
+			this.end = new Point(this.start.x + this.x, this.start.y + this.y);
+		}
+
+		getLength() {
+			return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+		}
+
+		normalize() {
+			return this.multiply(1/this.getLength());
+		}
+
+		multiply(value) {
+			return new Vector2D(this.x * value, this.y * value, this.start);
+		}
+
+		draw() {
+			context.save();
+			context.lineWidth = 1;
+			context.beginPath();
+			let headLength = 10;
+			let dx = this.end.x - this.start.x;
+			let dy = this.end.y - this.start.y;
+			let angle = Math.atan2(dy, dx);
+			context.moveTo(this.start.x, this.start.y);
+			context.lineTo(this.end.x, this.end.y);
+			context.lineTo(this.end.x - headLength * Math.cos(angle - Math.PI / 6), this.end.y - headLength * Math.sin(angle - Math.PI / 6));
+			context.moveTo(this.end.x, this.end.y);
+			context.lineTo(this.end.x - headLength * Math.cos(angle + Math.PI / 6), this.end.y - headLength * Math.sin(angle + Math.PI / 6));
+			context.stroke();
+			context.restore();
+		}
+	}
+
+	function add(v1, v2) {
+		return new Vector2D(v1.x + v2.x, v1.y + v2.y, v1.start);
+	}
+
+	function subtract(v1, v2) {
+		return new Vector2D(v1.x - v2.x, v1.y - v2.y, v1.start)
+	}
+
+	function scalar(v1, v2) {
+		return v1.x * v2.x + v1.y + v2.y;
+	}
+
 	function gameOver() {
 		isRunning = false;
 	}
@@ -652,9 +729,19 @@
 		return Math.floor(Math.random() * (max - min)) + min;
 	}
 
-	function getDistance(x1, y1, x2, y2) {
-		return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2))
+	function getObjDistance(o1, o2) {
+		return Math.sqrt(Math.pow(o2.x - o1.x, 2) + Math.pow(o2.y - o1.y, 2))
 	}
+
+	function getDistance(x1, y1, x2, y2) {
+		return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
+	}
+
+	function getAngle(x1, y1, x2, y2) {
+		return Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+	}
+
+	let vectorList = [];
 
 	function detectCollision(obj1, obj2) {
 		let colliding = false;
@@ -686,6 +773,36 @@
 		}
 		return colliding;
 	}
+
+	function parseAngle(rad) {
+		return rad * 180 / Math.PI + 180;
+	}
+
+	//=== stolen helper methods
+	function componentToHex(c) {
+		let hex = c.toString(16);
+		return hex.length === 1 ? "0" + hex : hex;
+	}
+
+	function rgbToHex(r, g, b) {
+		return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+	}
+
+	function hexToRgb(hex) {
+		// Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+		let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+		hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+			return r + r + g + g + b + b;
+		});
+
+		let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		return result ? {
+			r: parseInt(result[1], 16),
+			g: parseInt(result[2], 16),
+			b: parseInt(result[3], 16)
+		} : null;
+	}
+	//
 
 	let keystates = {};
 
@@ -758,7 +875,8 @@
 		context.fillRect(0, 0, canvas.width, canvas.height);
 
 		// draw all objects
-		for (let i = 0; i < appObjectList.length; i++) {
+		//for (let i = 0; i < appObjectList.length; i++) {
+		for (let i = appObjectList.length - 1; i >= 0; i--) {
 			let cur = appObjectList[i];
 			if (cur === undefined) continue;
 			cur.draw();
